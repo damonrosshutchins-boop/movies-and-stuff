@@ -7,7 +7,8 @@
     "dev": "node scripts/copy-vendor.mjs && vite",
     "build": "node scripts/copy-vendor.mjs && vite build",
     "preview": "vite preview",
-    "wisp": "node server/server.mjs"
+    "wisp": "node server/server.mjs",
+    "deploy:surge": "npm run build && node -e \"require('node:fs').copyFileSync('dist/index.html','dist/200.html')\" && npx --yes surge dist movies-and-stuff.surge.sh"
   },
   "dependencies": {
     "@mercuryworkshop/libcurl-transport": "2.0.6",

@@ -51,6 +51,21 @@ Then **Settings → Pages → Source: GitHub Actions**. The workflow in `.github
 
 Works at both `https://<user>.github.io` and `https://<user>.github.io/<repo>/`; the base path is detected at runtime.
 
+### Surge (alternative to Pages)
+
+Surge serves the same `dist/` folder and is already where this project is published:
+
+**https://movies-and-stuff.surge.sh/**
+
+```bash
+npx surge login          # once, if not already logged in
+npm run deploy:surge     # build + publish to movies-and-stuff.surge.sh
+```
+
+The script also writes `dist/200.html` so Surge serves the app for unknown paths. Use `npx surge dist <other-name>.surge.sh` for a different domain.
+
+Surge is HTTPS-only, so the tunnel must be `wss://` — a plain `ws://` URL is blocked as mixed content.
+
 ## Configuration (`public/config.js`)
 
 | Key | Meaning |
