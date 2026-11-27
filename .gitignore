@@ -1,6 +1,4 @@
 node_modules/
 dist/
-public/scramjet/
-public/controller/
 .DS_Store
 *.log

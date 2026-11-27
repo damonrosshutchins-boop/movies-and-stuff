@@ -8,7 +8,18 @@
 		<link rel="icon" href="data:," />
 	</head>
 	<body>
-		<iframe id="frame" title="ShuttleTV"></iframe>
+		<!--
+			sandbox without `allow-popups` or `allow-top-navigation`: the framed
+			site cannot open popunders or replace this page with an ad redirect.
+		-->
+		<iframe
+			id="site"
+			title="ShuttleTV"
+			sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-downloads allow-orientation-lock allow-pointer-lock allow-presentation"
+			allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
+			allowfullscreen
+			referrerpolicy="no-referrer"
+		></iframe>
 		<script type="module" src="/src/main.js"></script>
 	</body>
 </html>
