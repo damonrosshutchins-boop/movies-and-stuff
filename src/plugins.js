@@ -29,6 +29,29 @@ function decodeProxiedLink(href) {
 	}
 }
 
+function tunnelPageHtml({ retrying, wispUrl }) {
+	const target = escapeHtml(wispUrl);
+	const detail = retrying
+		? "Retrying in a few seconds…"
+		: "Still unreachable. Open the tunnel URL once in a new tab so it can wake up, then reload this page.";
+	return `<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Waiting for tunnel</title>
+<style>
+:root{color-scheme:dark}
+body{margin:0;min-height:100vh;display:grid;place-items:center;background:#0b0d12;color:#e7e9ee;font:15px/1.6 system-ui,-apple-system,Segoe UI,sans-serif}
+.card{max-width:460px;padding:30px;border:1px solid #232838;border-radius:16px;background:#11141b;text-align:center}
+h1{font-size:18px;margin:0 0 10px}
+p{color:#98a1b2;margin:0 0 10px}
+code{display:block;margin:14px 0;padding:10px;border-radius:9px;background:#0b0d12;color:#f3a34d;font-size:12px;word-break:break-all}
+</style></head>
+<body><div class="card">
+<h1>Waiting for the tunnel</h1>
+<p>The proxy could not reach its Wisp server. Free hosts sleep, and the first connection can take a while.</p>
+<code>${target}</code>
+<p>${detail}</p>
+</div></body></html>`;
+}
+
 function blockedPageHtml(url) {
 	const target = escapeHtml(url.href);
 	return `<!doctype html>
@@ -56,7 +79,7 @@ button{cursor:pointer;border:0;border-radius:9px;padding:10px 18px;background:#f
  * Builds the per-frame plugin list. Called after the Scramjet bundles have
  * loaded, because ManagedPlugin is read from the runtime global.
  */
-export function makePlugins({ state, config, onUrl }) {
+export function makePlugins({ state, config, onUrl, wispUrl }) {
 	const ManagedPlugin = globalThis.$scramjetController?.ManagedPlugin;
 	if (typeof ManagedPlugin !== "function") {
 		throw new Error("Scramjet controller is not loaded");
@@ -231,5 +254,52 @@ export function makePlugins({ state, config, onUrl }) {
 		}
 	}
 
-	return { plugins: [new ShuttleBlocker(), new ShuttlePageGuard()], allowHost };
+	// Turns a failed first navigation (no tunnel yet) into a readable page and
+	// one automatic retry, instead of the service worker's error text.
+	class ShuttleTunnelGuard extends ManagedPlugin {
+		constructor() {
+			super("shuttle-tunnel", []);
+		}
+
+		install(frame) {
+			super.install(frame);
+			let documentLoaded = false;
+			let retried = false;
+
+			this.tap(frame.hooks.init.post, (context) => {
+				if (context.isTopLevel) documentLoaded = true;
+			});
+
+			this.tap(frame.hooks.error.request, (context, props) => {
+				if (documentLoaded) return;
+				if (context.error?.name === "AbortError") return;
+
+				const destination = context.rawrequest?.destination;
+				if (destination !== "document" && destination !== "iframe") return;
+
+				props.suppressError = true;
+				props.setResponse = {
+					body: tunnelPageHtml({ retrying: !retried, wispUrl }),
+					status: 200,
+					statusText: "OK",
+					headers: [["content-type", "text/html; charset=utf-8"]],
+				};
+
+				if (retried) return;
+				retried = true;
+				setTimeout(() => {
+					const target = frame.element.src;
+					if (!target) return;
+					// Clear first: assigning an identical src back would be a no-op.
+					frame.element.removeAttribute("src");
+					frame.element.src = target;
+				}, 6000);
+			});
+		}
+	}
+
+	return {
+		plugins: [new ShuttleBlocker(), new ShuttlePageGuard(), new ShuttleTunnelGuard()],
+		allowHost,
+	};
 }

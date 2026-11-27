@@ -55,13 +55,25 @@ Works at both `https://<user>.github.io` and `https://<user>.github.io/<repo>/`;
 
 | Key | Meaning |
 | --- | --- |
-| `wispUrl` | Wisp WebSocket URL. Required on Pages. |
+| `wispUrl` | Wisp WebSocket URL. Required on Pages. Overridable per page load with `?wisp=`. |
 | `home` | Page opened on load and by the **ShuttleTV** button. |
 | `blockRedirects` | Block top-level navigations that leave the site (popunder redirects). Turn off if a player lives on another domain. |
 | `extraBlockedDomains` | More ad hosts, e.g. `"ads.example.com"`. |
 | `extraAllowedDomains` | Extra hosts the proxy may navigate to (players, CDNs). |
 
 You can also open a URL directly with `?u=https://example.com/`.
+
+### Testing a tunnel without rebuilding
+
+Append `?wisp=` to override `wispUrl` for that page load only (nothing is saved):
+
+```
+https://<user>.github.io/<repo>/?wisp=wss://your-server.onrender.com/wisp/
+```
+
+`http(s)://` values are converted to `ws(s)://`, and a bare host gets `/wisp/` appended. Combine it with `?u=` if you also want a different start page. Since the override lives in the URL, it survives the reload the proxy does on first visit.
+
+If the tunnel cannot be reached, the first failure shows a short "Waiting for the tunnel" page and retries once after about six seconds; a second failure tells you to wake the host and reload, instead of displaying the service worker's error text.
 
 ## What gets blocked
 

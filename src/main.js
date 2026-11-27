@@ -50,6 +50,22 @@ function normalizeUrl(raw) {
 	}
 }
 
+// ?wisp=wss://host/wisp/ overrides config.js for this page load, so a tunnel
+// can be tested on the deployed site without a rebuild.
+function parseWispParam(raw) {
+	if (!raw) return null;
+	try {
+		const url = new URL(String(raw).trim());
+		if (url.protocol === "http:") url.protocol = "ws:";
+		else if (url.protocol === "https:") url.protocol = "wss:";
+		if (url.protocol !== "ws:" && url.protocol !== "wss:") return null;
+		if (!url.pathname || url.pathname === "/") url.pathname = "/wisp/";
+		return url.toString();
+	} catch {
+		return null;
+	}
+}
+
 function resolveWispUrl() {
 	const explicit = String(config.wispUrl || "").trim();
 	if (explicit) return explicit;
@@ -99,6 +115,18 @@ async function boot() {
 	});
 	Object.assign(config, window.PROXY_CONFIG || DEFAULT_CONFIG);
 
+	const requestedWisp = new URLSearchParams(location.search).get("wisp");
+	let wispOverride = false;
+	if (requestedWisp) {
+		const override = parseWispParam(requestedWisp);
+		if (override) {
+			config.wispUrl = override;
+			wispOverride = true;
+		} else {
+			console.warn(`Ignoring invalid ?wisp= value: ${requestedWisp}`);
+		}
+	}
+
 	const isLocalHost = /^(localhost|127(?:\.\d+){3}|\[::1\])$/i.test(location.hostname);
 	if (!String(config.wispUrl || "").trim() && !isLocalHost) {
 		console.error(
@@ -111,13 +139,16 @@ async function boot() {
 	const controlled = await ensureServiceWorker();
 	if (!controlled) return;
 
+	const wispUrl = resolveWispUrl();
+	console.info(`[wisp] ${wispUrl}${wispOverride ? " (from ?wisp=)" : ""}`);
+
 	await loadScript(`${BASE}scramjet/scramjet.js`);
 	await loadScript(`${BASE}controller/controller.api.js`);
 
 	const { Controller } = globalThis.$scramjetController;
 	const controller = new Controller({
 		serviceworker: navigator.serviceWorker.controller,
-		transport: new LibcurlClient({ wisp: resolveWispUrl() }),
+		transport: new LibcurlClient({ wisp: wispUrl }),
 		config: {
 			// A subpath-aware prefix: the worker is registered at BASE, so it
 			// must cover every proxied URL.
@@ -130,7 +161,7 @@ async function boot() {
 
 	await controller.wait();
 
-	const { plugins, allowHost } = makePlugins({ state, config, onUrl: () => {} });
+	const { plugins, allowHost } = makePlugins({ state, config, onUrl: () => {}, wispUrl });
 	const frame = controller.createFrame(frameElement, { plugins });
 
 	const start = new URLSearchParams(location.search).get("u") || config.home;
