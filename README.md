@@ -1,8 +1,10 @@
 # Shuttle Proxy
 
-A [Scramjet](https://github.com/MercuryWorkshop/scramjet) web proxy with ad, popunder and redirect blocking, built to be hosted on GitHub Pages.
+A [Scramjet](https://github.com/MercuryWorkshop/scramjet) web proxy with ad, popunder and redirect blocking, deployed to [Surge](https://surge.sh).
 
-GitHub Pages only serves static files. Scramjet's client runs there fine, but the actual traffic has to leave through a **Wisp** WebSocket server, which Pages cannot run. That one small server is the only piece you host elsewhere (Render, Fly, Railway, a VPS…). Everything else lives on Pages.
+**https://movies-and-stuff.surge.sh/**
+
+Surge only serves static files. Scramjet's client runs there fine, but the actual traffic has to leave through a **Wisp** WebSocket server, which a static host cannot run. That one small server is the only piece you host elsewhere (Render, Fly, Railway, a VPS…). Everything else lives on Surge.
 
 ## Local development
 
@@ -35,34 +37,14 @@ wispUrl: "wss://<name>.onrender.com/wisp/",
 
 Commit and push.
 
-### 3. GitHub Pages
-
-If this folder is not a git repository yet:
-
-```bash
-git init -b main
-git add .
-git commit -m "Shuttle proxy"
-git remote add origin https://github.com/<user>/<repo>.git
-git push -u origin main
-```
-
-Then **Settings → Pages → Source: GitHub Actions**. The workflow in `.github/workflows/pages.yml` builds and publishes `dist/`. Every later push to `main` republishes it.
-
-Works at both `https://<user>.github.io` and `https://<user>.github.io/<repo>/`; the base path is detected at runtime.
-
-### Surge (alternative to Pages)
-
-Surge serves the same `dist/` folder and is already where this project is published:
-
-**https://movies-and-stuff.surge.sh/**
+### 3. Publish to Surge
 
 ```bash
 npx surge login          # once, if not already logged in
 npm run deploy:surge     # build + publish to movies-and-stuff.surge.sh
 ```
 
-The script also writes `dist/200.html` so Surge serves the app for unknown paths. Use `npx surge dist <other-name>.surge.sh` for a different domain.
+The script builds, writes `dist/200.html` so Surge serves the app for unknown paths, and publishes. Use `npx surge dist <other-name>.surge.sh` for a different domain.
 
 Surge is HTTPS-only, so the tunnel must be `wss://` — a plain `ws://` URL is blocked as mixed content.
 
@@ -70,7 +52,7 @@ Surge is HTTPS-only, so the tunnel must be `wss://` — a plain `ws://` URL is b
 
 | Key | Meaning |
 | --- | --- |
-| `wispUrl` | Wisp WebSocket URL. Required on Pages. Overridable per page load with `?wisp=`. |
+| `wispUrl` | Wisp WebSocket URL. Required on the deployed host. Overridable per page load with `?wisp=`. |
 | `home` | Page opened on load and by the **ShuttleTV** button. |
 | `blockRedirects` | Block top-level navigations that leave the site (popunder redirects). Turn off if a player lives on another domain. |
 | `extraBlockedDomains` | More ad hosts, e.g. `"ads.example.com"`. |
@@ -83,7 +65,7 @@ You can also open a URL directly with `?u=https://example.com/`.
 Append `?wisp=` to override `wispUrl` for that page load only (nothing is saved):
 
 ```
-https://<user>.github.io/<repo>/?wisp=wss://your-server.onrender.com/wisp/
+https://movies-and-stuff.surge.sh/?wisp=wss://your-server.onrender.com/wisp/
 ```
 
 `http(s)://` values are converted to `ws(s)://`, and a bare host gets `/wisp/` appended. Combine it with `?u=` if you also want a different start page. Since the override lives in the URL, it survives the reload the proxy does on first visit.
@@ -102,7 +84,7 @@ There is no shell UI: the site fills the window and blocked requests are logged 
 ## Tested behaviour
 
 - Home page, browsing, images, API calls and in-site navigation render through the proxy.
-- The site's ad scripts (`a.cineflix.st`, `a2.cineflix.st`, `adexchangerapid.com`, `usrpubtrk.com`) are blocked before they leave the tunnel, and the counter reflects it.
+- The site's ad scripts (`a.cineflix.st`, `a2.cineflix.st`, `adexchangerapid.com`, `usrpubtrk.com`) are blocked before they leave the tunnel, and each block is logged to the console.
 - A script-driven navigation to a foreign host gets the "Ad redirect blocked" page; the start URL (from `home` or `?u=`) is trusted.
 - **Not verified:** playback. The watch page stayed on "Loading player..." in testing, which is typical of HLS/DRM players inside a JS proxy.
 
@@ -110,5 +92,5 @@ There is no shell UI: the site fills the window and blocked requests are logged 
 
 - Not affiliated with shuttletv.pk; you are responsible for what you access and for the local laws that apply.
 - DRM-protected streams will not play through any JS proxy, and some players break under proxying. Set `blockRedirects: false` or add the player's domain to `extraAllowedDomains` if a specific title fails.
-- Because Pages cannot set response headers, the proxy runs without cross-origin isolation. The libcurl transport used here does not need it.
+- Because the static host cannot set response headers, the proxy runs without cross-origin isolation. The libcurl transport used here does not need it.
 - If the tunnel drops, Scramjet reconnects; a stalled page usually needs a reload.
