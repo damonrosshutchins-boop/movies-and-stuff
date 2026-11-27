@@ -79,16 +79,33 @@ async function ensureServiceWorker() {
 	throw new Error("The service worker is not controlling this page. Hard-reload with Ctrl+Shift+R.");
 }
 
+// Only shown when the proxy cannot work at all (no tunnel URL).
+function showTunnelNotice() {
+	document.body.textContent = "";
+	const notice = document.createElement("p");
+	notice.style.cssText =
+		"margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;" +
+		"padding:24px;background:#000;color:#f3a34d;text-align:center;" +
+		"font:14px/1.7 system-ui,-apple-system,Segoe UI,sans-serif";
+	notice.textContent =
+		"No tunnel configured. Set wispUrl in config.js to your Wisp server, " +
+		"for example wss://your-server.onrender.com/wisp/.";
+	document.body.appendChild(notice);
+}
+
 async function boot() {
 	await loadScript(`${BASE}config.js`).catch(() => {
 		console.warn("config.js missing, using defaults");
 	});
 	Object.assign(config, window.PROXY_CONFIG || DEFAULT_CONFIG);
 
-	if (!String(config.wispUrl || "").trim() && /\.github\.io$/i.test(location.hostname)) {
+	const isLocalHost = /^(localhost|127(?:\.\d+){3}|\[::1\])$/i.test(location.hostname);
+	if (!String(config.wispUrl || "").trim() && !isLocalHost) {
 		console.error(
 			"Wisp server not configured. Set wispUrl in config.js to your deployed Wisp server (see README).",
 		);
+		showTunnelNotice();
+		return;
 	}
 
 	const controlled = await ensureServiceWorker();
